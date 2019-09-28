@@ -27,17 +27,17 @@ const (
 )
 
 type ChannelItem struct {
-	ID           string
-	Name         string
-	Topic        string
-	Type         string
-	UserID       string
-	Presence     string
-	Notification bool
-
-	StylePrefix string
-	StyleIcon   string
-	StyleText   string
+	ID             string
+	Name           string
+	Topic          string
+	Type           string
+	UserID         string
+	Presence       string
+	Notification   bool
+	StylePrefix    string
+	StyleIcon      string
+	StyleText      string
+	IsSearchResult bool
 }
 
 // ToString will set the label of the channel, how it will be
@@ -97,37 +97,66 @@ func (c ChannelItem) GetChannelName() string {
 
 // Channels is the definition of a Channels component
 type Channels struct {
-	ChannelItems    []ChannelItem
-	List            *termui.List
-	SelectedChannel int // index of which channel is selected from the List
-	Offset          int // from what offset are channels rendered
-	CursorPosition  int // the y position of the 'cursor'
-
-	SearchMatches  []int // index of the search matches
-	SearchPosition int   // current position of a search match
+	ChannelItems    []ChannelItem // sorted list of channels
+	CursorPosition  int           // the y position of the cursor between the min/max bounds
+	List            *termui.List  // ui of visible channels
+	Offset          int           // from what offset are channels rendered
+	SearchPosition  int           // current position in search results
+	SelectedChannel string        // index of which channel is selected from the List
+	UnreadOnly      bool          // only show unread messages when on
 }
 
 // CreateChannels is the constructor for the Channels component
-func CreateChannelsComponent(height int) *Channels {
+func CreateChannelsComponent(height int, unreadOnly bool) *Channels {
 	channels := &Channels{
 		List: termui.NewList(),
 	}
 
-	channels.List.BorderLabel = "Channels"
+	channels.List.BorderLabel = "Conversations"
 	channels.List.Height = height
 
-	channels.SelectedChannel = 0
+	channels.SelectedChannel = ""
 	channels.Offset = 0
 	channels.CursorPosition = channels.List.InnerBounds().Min.Y
+	channels.UnreadOnly = unreadOnly
 
 	return channels
+}
+
+// List lists all visible channels
+// always includes the currently selected channel (if one is selected)
+// if the app is configured to only show messages with unread messages, filter out read channels
+func (c *Channels) ListChannels() (items []ChannelItem) {
+	if !c.UnreadOnly {
+		items = c.ChannelItems
+		return
+	}
+
+	for _, chn := range c.ChannelItems {
+		if chn.ID == c.SelectedChannel || chn.Notification || chn.IsSearchResult {
+			items = append(items, chn)
+		}
+	}
+
+	return
+}
+
+// ListSearchResults lists all channels that are results of the current search
+func (c *Channels) ListSearchResults() (items []ChannelItem) {
+	for _, chn := range c.ListChannels() {
+		if chn.IsSearchResult {
+			items = append(items, chn)
+		}
+	}
+
+	return
 }
 
 // Buffer implements interface termui.Bufferer
 func (c *Channels) Buffer() termui.Buffer {
 	buf := c.List.Buffer()
 
-	for i, item := range c.ChannelItems[c.Offset:] {
+	for i, item := range c.ListChannels()[c.Offset:] {
 
 		y := c.List.InnerBounds().Min.Y + i
 
@@ -203,78 +232,159 @@ func (c *Channels) SetY(y int) {
 
 func (c *Channels) SetChannels(channels []ChannelItem) {
 	c.ChannelItems = channels
+
+	// set the current channel to the first one in the list
+	// when unread-only is off
+	if !c.UnreadOnly && len(c.ChannelItems) > 0 {
+		c.SetSelectedChannel(c.ChannelItems[0].ID)
+	}
 }
 
-func (c *Channels) MarkAsRead(channelID int) {
-	c.ChannelItems[channelID].Notification = false
+func (c *Channels) MarkAsRead(channelID string) {
+
+	if index, ok := c.FindChannel(channelID); ok {
+		c.ChannelItems[index].Notification = false
+	}
 }
 
 func (c *Channels) MarkAsUnread(channelID string) {
-	index := c.FindChannel(channelID)
-	c.ChannelItems[index].Notification = true
+
+	if index, ok := c.FindChannel(channelID); ok {
+		c.ChannelItems[index].Notification = true
+	}
 }
 
 func (c *Channels) SetPresence(channelID string, presence string) {
-	index := c.FindChannel(channelID)
-	c.ChannelItems[index].Presence = presence
+	if index, ok := c.FindChannel(channelID); ok {
+		c.ChannelItems[index].Presence = presence
+	}
 }
 
-func (c *Channels) FindChannel(channelID string) int {
-	var index int
+// FindChannel finds the index of the channel in ChannelItems
+// it is not necessarily visible
+func (c *Channels) FindChannel(channelID string) (index int, ok bool) {
 	for i, channel := range c.ChannelItems {
 		if channel.ID == channelID {
 			index = i
+			ok = true
 			break
 		}
 	}
-	return index
+
+	return index, ok
 }
 
-// SetSelectedChannel sets the SelectedChannel given the index
-func (c *Channels) SetSelectedChannel(index int) {
-	c.SelectedChannel = index
+// FindVisibleChannels finds a channel by ID in the visible channel list
+func (c *Channels) FindVisibleChannel(channelID string) (chn ChannelItem, ok bool) {
+
+	for _, channel := range c.ListChannels() {
+		if channel.ID == channelID {
+			chn = channel
+			ok = true
+			break
+		}
+	}
+
+	return chn, ok
+}
+
+// SetSelectedChannel sets the SelectedChannel given its ID
+func (c *Channels) SetSelectedChannel(channelID string) {
+
+	if _, ok := c.FindChannel(channelID); ok {
+		c.SelectedChannel = channelID
+	}
 }
 
 // Get SelectedChannel returns the ChannelItem that is currently selected
-func (c *Channels) GetSelectedChannel() ChannelItem {
-	return c.ChannelItems[c.SelectedChannel]
+func (c *Channels) GetSelectedChannel() (selected ChannelItem, ok bool) {
+
+	var index int
+	if index, ok = c.FindChannel(c.SelectedChannel); ok {
+		selected = c.ChannelItems[index]
+	}
+
+	return
+}
+
+// get the channel item that preceeds the selected channel item in the visible channel list
+func (c *Channels) getPreviousItem() (prev ChannelItem, ok bool) {
+
+	for _, curr := range c.ListChannels() {
+		if curr.ID == c.SelectedChannel && prev.ID != "" {
+			ok = true
+			break
+		}
+
+		prev = curr
+	}
+
+	return
+}
+
+// get the channel item that proceeds the selected channel item in the visible channel list
+func (c *Channels) getNextItem() (next ChannelItem, ok bool) {
+
+	channels := c.ListChannels()
+	for i := len(channels) - 1; i >= 0; i-- {
+		curr := channels[i]
+		if curr.ID == c.SelectedChannel && next.ID != "" {
+			ok = true
+			break
+		}
+
+		next = curr
+	}
+
+	return
 }
 
 // MoveCursorUp will decrease the SelectedChannel by 1
-func (c *Channels) MoveCursorUp() {
-	if c.SelectedChannel > 0 {
-		c.SetSelectedChannel(c.SelectedChannel - 1)
+// returns the item over which the cursor is now hovering
+func (c *Channels) MoveCursorUp() (hovering ChannelItem, ok bool) {
+
+	if hovering, ok = c.getPreviousItem(); ok {
+		c.SetSelectedChannel(hovering.ID)
 		c.ScrollUp()
 	}
+
+	return
 }
 
 // MoveCursorDown will increase the SelectedChannel by 1
-func (c *Channels) MoveCursorDown() {
-	if c.SelectedChannel < len(c.ChannelItems)-1 {
-		c.SetSelectedChannel(c.SelectedChannel + 1)
+// returns the item over which the cursor is now hovering
+func (c *Channels) MoveCursorDown() (hovering ChannelItem, ok bool) {
+
+	if hovering, ok = c.getNextItem(); ok {
+		c.SetSelectedChannel(hovering.ID)
 		c.ScrollDown()
 	}
+
+	return
 }
 
 // MoveCursorTop will move the cursor to the top of the channels
 func (c *Channels) MoveCursorTop() {
-	c.SetSelectedChannel(0)
-	c.CursorPosition = c.List.InnerBounds().Min.Y
+	if list := c.ListChannels(); len(list) > 0 {
+		c.SetSelectedChannel(list[0].ID)
+	}
+
 	c.Offset = 0
 }
 
 // MoveCursorBottom will move the cursor to the bottom of the channels
 func (c *Channels) MoveCursorBottom() {
-	c.SetSelectedChannel(len(c.ChannelItems) - 1)
+	if list := c.ListChannels(); len(list) > 0 {
+		index := len(list) - 1
+		c.SetSelectedChannel(list[index].ID)
 
-	offset := len(c.ChannelItems) - (c.List.InnerBounds().Max.Y - 1)
+		offset := len(list) - (c.List.InnerBounds().Max.Y - 1)
 
-	if offset < 0 {
-		c.Offset = 0
-		c.CursorPosition = c.SelectedChannel + 1
-	} else {
-		c.Offset = offset
-		c.CursorPosition = c.List.InnerBounds().Max.Y - 1
+		if offset < 0 {
+			c.Offset = 0
+		} else {
+			c.Offset = offset
+		}
 	}
 }
 
@@ -305,8 +415,13 @@ func (c *Channels) ScrollDown() {
 // Search will search through the channels to find a channel,
 // when a match has been found the selected channel will then
 // be the channel that has been found
-func (c *Channels) Search(term string) {
-	c.SearchMatches = make([]int, 0)
+func (c *Channels) Search(term string) (resultCount int) {
+
+	for i, chn := range c.ChannelItems {
+		if chn.IsSearchResult {
+			c.ChannelItems[i].IsSearchResult = false
+		}
+	}
 
 	targets := make([]string, 0)
 	for _, c := range c.ChannelItems {
@@ -318,78 +433,83 @@ func (c *Channels) Search(term string) {
 	for _, m := range matches {
 		for i, item := range c.ChannelItems {
 			if m == item.Name {
-				c.SearchMatches = append(c.SearchMatches, i)
+				resultCount = resultCount + 1
+				c.ChannelItems[i].IsSearchResult = true
 				break
 			}
 		}
 	}
 
-	if len(c.SearchMatches) > 0 {
-		c.GotoPositionSearch(0)
+	if resultCount > 0 {
+		c.GotoPosition(0)
 		c.SearchPosition = 0
 	}
+
+	return
 }
 
 // GotoPosition is used by to automatically scroll to a specific
 // location in the channels component
-func (c *Channels) GotoPosition(newPos int) {
+func (c *Channels) GotoPosition(newPos int) (ok bool) {
+
+	// there's nothing to be done if there are no search results, or the given position
+	// is out of range
+	var results []ChannelItem
+	if results = c.ListSearchResults(); len(results) == 0 || newPos > len(results)-1 {
+		return
+	}
 
 	// Is the new position in range of the current view?
 	minRange := c.Offset
 	maxRange := c.Offset + (c.List.InnerBounds().Max.Y - 2)
 
+	var newChannelIndex int
+	if newChannelIndex, ok = c.FindChannel(results[newPos].ID); !ok {
+		return
+	}
+
+	newChannelID := c.ChannelItems[newChannelIndex].ID
+
 	if newPos < minRange {
 		// newPos is above, we need to scroll up.
-		c.SetSelectedChannel(newPos)
+		c.SetSelectedChannel(newChannelID)
 
 		// How much do we need to scroll to get it into range?
 		c.Offset = c.Offset - (minRange - newPos)
 	} else if newPos > maxRange {
 		// newPos is below, we need to scroll down
-		c.SetSelectedChannel(newPos)
+		c.SetSelectedChannel(newChannelID)
 
 		// How much do we need to scroll to get it into range?
 		c.Offset = c.Offset + (newPos - maxRange)
 	} else {
 		// newPos is inside range
-		c.SetSelectedChannel(newPos)
+		c.SetSelectedChannel(newChannelID)
 	}
 
-	// Set cursor to correct position
-	c.CursorPosition = (newPos - c.Offset) + 1
+	return true
 }
 
-// GotoPosition is used by the search functionality to automatically
-// scroll to a specific location in the channels component
-func (c *Channels) GotoPositionSearch(position int) {
-	newPos := c.SearchMatches[position]
-	c.GotoPosition(newPos)
-}
-
-// SearchNext allows us to cycle through the c.SearchMatches
+// SearchNext allows us to cycle through search results
 func (c *Channels) SearchNext() {
 	newPosition := c.SearchPosition + 1
-	if newPosition <= len(c.SearchMatches)-1 {
-		c.GotoPositionSearch(newPosition)
+	if ok := c.GotoPosition(newPosition); ok {
 		c.SearchPosition = newPosition
 	}
 }
 
-// SearchPrev allows us to cycle through the c.SearchMatches
+// SearchPrev allows us to cycle through resrch results
 func (c *Channels) SearchPrev() {
 	newPosition := c.SearchPosition - 1
-	if newPosition >= 0 {
-		c.GotoPositionSearch(newPosition)
+	if ok := c.GotoPosition(newPosition); ok {
 		c.SearchPosition = newPosition
 	}
 }
 
 // Jump to the first channel with a notification
 func (c *Channels) Jump() {
-	for i, channel := range c.ChannelItems {
-		if channel.Notification {
-			c.GotoPosition(i)
-			break
-		}
+	for i, _ := range c.ListChannels() {
+		c.GotoPosition(i)
+		break
 	}
 }

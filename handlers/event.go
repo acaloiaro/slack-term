@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/0xAX/notificator"
+	"github.com/acaloiaro/slack"
 	"github.com/erroneousboat/termui"
-	"github.com/nlopes/slack"
 	termbox "github.com/nsf/termbox-go"
 
 	"github.com/erroneousboat/slack-term/components"
@@ -63,6 +63,9 @@ func Initialize(ctx *context.AppContext) {
 
 	// User presence
 	go actionSetPresenceAll(ctx)
+
+	// Fetch unread message statuses for all open conversations
+	go actionFetchHistoryAll(ctx)
 }
 
 // eventHandler will handle events created by the user
@@ -130,7 +133,8 @@ func messageHandler(ctx *context.AppContext) {
 					}
 
 					// Add message to the selected channel
-					if ev.Channel == ctx.View.Channels.ChannelItems[ctx.View.Channels.SelectedChannel].ID {
+					chn, ok := ctx.View.Channels.GetSelectedChannel()
+					if ok && ev.Channel == chn.ID {
 
 						// When timestamp isn't set this is a thread reply,
 						// handle as such
@@ -312,11 +316,14 @@ func actionSend(ctx *context.AppContext) {
 		ctx.View.Input.Clear()
 		termui.Render(ctx.View.Input)
 
+		var chn components.ChannelItem
+		var ok bool
+		if chn, ok = ctx.View.Channels.GetSelectedChannel(); !ok {
+			return
+		}
+
 		// Send slash command
-		isCmd, err := ctx.Service.SendCommand(
-			ctx.View.Channels.ChannelItems[ctx.View.Channels.SelectedChannel].ID,
-			message,
-		)
+		isCmd, err := ctx.Service.SendCommand(chn.ID, message)
 		if err != nil {
 			ctx.View.Debug.Println(
 				err.Error(),
@@ -326,10 +333,7 @@ func actionSend(ctx *context.AppContext) {
 		// Send message
 		if !isCmd {
 			if ctx.Focus == context.ChatFocus {
-				err := ctx.Service.SendMessage(
-					ctx.View.Channels.ChannelItems[ctx.View.Channels.SelectedChannel].ID,
-					message,
-				)
+				err := ctx.Service.SendMessage(chn.ID, message)
 				if err != nil {
 					ctx.View.Debug.Println(
 						err.Error(),
@@ -339,11 +343,7 @@ func actionSend(ctx *context.AppContext) {
 			}
 
 			if ctx.Focus == context.ThreadFocus {
-				err := ctx.Service.SendReply(
-					ctx.View.Channels.ChannelItems[ctx.View.Channels.SelectedChannel].ID,
-					ctx.View.Threads.ChannelItems[ctx.View.Threads.SelectedChannel].ID,
-					message,
-				)
+				err := ctx.Service.SendReply(chn.ID, ctx.View.Threads.SelectedChannel, message)
 				if err != nil {
 					ctx.View.Debug.Println(
 						err.Error(),
@@ -353,9 +353,8 @@ func actionSend(ctx *context.AppContext) {
 		}
 
 		// Clear notification icon if there is any
-		channelItem := ctx.View.Channels.ChannelItems[ctx.View.Channels.SelectedChannel]
-		if channelItem.Notification {
-			ctx.Service.MarkAsRead(channelItem)
+		if chn.Notification {
+			ctx.Service.MarkAsRead(chn)
 			ctx.View.Channels.MarkAsRead(ctx.View.Channels.SelectedChannel)
 		}
 		termui.Render(ctx.View.Channels)
@@ -378,8 +377,11 @@ func actionSearch(ctx *context.AppContext, key rune) {
 
 		// Only actually search when the time expires
 		term := ctx.View.Input.GetText()
-		ctx.View.Channels.Search(term)
-		actionChangeChannel(ctx)
+		resultCount := ctx.View.Channels.Search(term)
+
+		if resultCount > 0 {
+			actionChangeChannel(ctx)
+		}
 	}()
 }
 
@@ -408,8 +410,14 @@ func actionSearchMode(ctx *context.AppContext) {
 }
 
 func actionGetMessages(ctx *context.AppContext) {
+	var chn components.ChannelItem
+	var ok bool
+	if chn, ok = ctx.View.Channels.GetSelectedChannel(); !ok {
+		return
+	}
+
 	msgs, _, err := ctx.Service.GetMessages(
-		ctx.View.Channels.ChannelItems[ctx.View.Channels.SelectedChannel].ID,
+		chn.ID,
 		ctx.View.Chat.GetMaxItems(),
 	)
 	if err != nil {
@@ -419,7 +427,6 @@ func actionGetMessages(ctx *context.AppContext) {
 	}
 
 	ctx.View.Chat.SetMessages(msgs)
-
 	termui.Render(ctx.View.Chat)
 }
 
@@ -432,13 +439,19 @@ func actionMoveCursorUpChannels(ctx *context.AppContext) {
 			scrollTimer.Stop()
 		}
 
-		ctx.View.Channels.MoveCursorUp()
+		var hovering components.ChannelItem
+		var ok bool
+		if hovering, ok = ctx.View.Channels.MoveCursorUp(); !ok {
+			return
+		}
+
 		termui.Render(ctx.View.Channels)
 
 		scrollTimer = time.NewTimer(time.Second / 4)
 		<-scrollTimer.C
 
 		// Only actually change channel when the timer expires
+		ctx.View.Channels.SetSelectedChannel(hovering.ID)
 		actionChangeChannel(ctx)
 	}()
 }
@@ -447,18 +460,25 @@ func actionMoveCursorUpChannels(ctx *context.AppContext) {
 // function. A timer is implemented to support fast scrolling through
 // the list without executing the actionChangeChannel event
 func actionMoveCursorDownChannels(ctx *context.AppContext) {
+
 	go func() {
 		if scrollTimer != nil {
 			scrollTimer.Stop()
 		}
 
-		ctx.View.Channels.MoveCursorDown()
+		var hovering components.ChannelItem
+		var ok bool
+		if hovering, ok = ctx.View.Channels.MoveCursorDown(); !ok {
+			return
+		}
+
 		termui.Render(ctx.View.Channels)
 
 		scrollTimer = time.NewTimer(time.Second / 4)
 		<-scrollTimer.C
 
 		// Only actually change channel when the timer expires
+		ctx.View.Channels.SetSelectedChannel(hovering.ID)
 		actionChangeChannel(ctx)
 	}()
 }
@@ -492,10 +512,16 @@ func actionChangeChannel(ctx *context.AppContext) {
 	// Clear messages from Chat pane
 	ctx.View.Chat.ClearMessages()
 
+	var chn components.ChannelItem
+	var ok bool
+	if chn, ok = ctx.View.Channels.GetSelectedChannel(); !ok {
+		return
+	}
+
 	// Get messages of the SelectedChannel, and get the count of messages
 	// that fit into the Chat component
 	msgs, threads, err := ctx.Service.GetMessages(
-		ctx.View.Channels.ChannelItems[ctx.View.Channels.SelectedChannel].ID,
+		chn.ID,
 		ctx.View.Chat.GetMaxItems(),
 	)
 	if err != nil {
@@ -512,10 +538,12 @@ func actionChangeChannel(ctx *context.AppContext) {
 	if len(threads) > 0 {
 		haveThreads = true
 
+		ctx.View.Threads.SelectedChannel = threads[0].ID
+
 		// Make the first thread the current Channel
 		ctx.View.Threads.SetChannels(
 			append(
-				[]components.ChannelItem{ctx.View.Channels.GetSelectedChannel()},
+				[]components.ChannelItem{chn},
 				threads...,
 			),
 		)
@@ -525,16 +553,11 @@ func actionChangeChannel(ctx *context.AppContext) {
 	}
 
 	// Set channel name for the Chat pane
-	ctx.View.Chat.SetBorderLabel(
-		ctx.View.Channels.ChannelItems[ctx.View.Channels.SelectedChannel].GetChannelName(),
-	)
+	ctx.View.Chat.SetBorderLabel(chn.GetChannelName())
 
-	// Clear notification icon if there is any
-	channelItem := ctx.View.Channels.ChannelItems[ctx.View.Channels.SelectedChannel]
-	if channelItem.Notification {
-		ctx.Service.MarkAsRead(channelItem)
-		ctx.View.Channels.MarkAsRead(ctx.View.Channels.SelectedChannel)
-	}
+	// Mark the loaded channel as read
+	ctx.Service.MarkAsRead(chn)
+	ctx.View.Channels.MarkAsRead(chn.ID)
 
 	// Redraw grid, necessary when threads and/or debug is set. We will redraw
 	// the grid when there are threads, or we just came from a thread and went
@@ -547,9 +570,10 @@ func actionChangeChannel(ctx *context.AppContext) {
 		actionRedrawGrid(ctx, haveThreads, ctx.Debug)
 	} else {
 		termui.Render(ctx.View.Threads)
-		termui.Render(ctx.View.Channels)
 		termui.Render(ctx.View.Chat)
 	}
+
+	termui.Render(ctx.View.Channels)
 
 	// Set focus, necessary to know when replying to thread or chat
 	ctx.Focus = context.ChatFocus
@@ -563,11 +587,11 @@ func actionChangeThread(ctx *context.AppContext) {
 	// Focus and messages accordingly.
 	var err error
 	msgs := []components.Message{}
-	if ctx.View.Threads.SelectedChannel == 0 {
+	if ctx.View.Threads.SelectedChannel == ctx.View.Channels.SelectedChannel {
 		ctx.Focus = context.ChatFocus
 
 		msgs, _, err = ctx.Service.GetMessages(
-			ctx.View.Channels.ChannelItems[ctx.View.Channels.SelectedChannel].ID,
+			ctx.View.Channels.SelectedChannel,
 			ctx.View.Chat.GetMaxItems(),
 		)
 		if err != nil {
@@ -579,8 +603,8 @@ func actionChangeThread(ctx *context.AppContext) {
 		ctx.Focus = context.ThreadFocus
 
 		msgs, err = ctx.Service.GetMessageByID(
-			ctx.View.Threads.ChannelItems[ctx.View.Threads.SelectedChannel].ID,
-			ctx.View.Channels.ChannelItems[ctx.View.Channels.SelectedChannel].ID,
+			ctx.View.Threads.SelectedChannel,
+			ctx.View.Channels.SelectedChannel,
 		)
 		if err != nil {
 			termbox.Close()
@@ -670,6 +694,48 @@ func actionSetPresenceAll(ctx *context.AppContext) {
 			termui.Render(ctx.View.Channels)
 			time.Sleep(1200 * time.Millisecond)
 		}
+
+	}
+}
+
+func actionFetchHistoryAll(ctx *context.AppContext) {
+
+	if !ctx.Config.UnreadOnly {
+		return
+	}
+
+	for _, chn := range ctx.Service.Conversations {
+		historyParams := slack.GetConversationHistoryParameters{
+			ChannelID: chn.ID,
+			Limit:     0,
+			Unreads:   true,
+		}
+
+		history, err := ctx.Service.Client.GetConversationHistory(&historyParams)
+		if ctx.Debug {
+			ctx.View.Debug.Println(fmt.Sprintf("history retrieved: %s", chn.Name))
+		}
+
+		if err != nil {
+			ctx.View.Debug.Println(fmt.Sprintf("history error: %v", err))
+			continue
+		}
+
+		ctx.View.Debug.Println(fmt.Sprintf("Unread %v", history.UnreadCountDisplay))
+		if history.UnreadCountDisplay > 0 {
+
+			// treat all unread messages as new
+			actionNewMessage(ctx, &slack.MessageEvent{Msg: slack.Msg{Channel: chn.ID}})
+
+			// There's no channel selected in the channels component; select this one
+			if _, ok := ctx.View.Channels.GetSelectedChannel(); !ok {
+				ctx.View.Channels.SetSelectedChannel(chn.ID)
+				actionChangeChannel(ctx)
+			}
+		}
+
+		termui.Render(ctx.View.Channels)
+		time.Sleep(250 * time.Millisecond)
 	}
 }
 
@@ -741,8 +807,13 @@ func getKeyString(e termbox.Event) string {
 
 // isMention check if the message event either contains a
 // mention or is posted on an IM channel.
-func isMention(ctx *context.AppContext, ev *slack.MessageEvent) bool {
-	channel := ctx.View.Channels.ChannelItems[ctx.View.Channels.FindChannel(ev.Channel)]
+func isMention(ctx *context.AppContext, ev *slack.MessageEvent) (ok bool) {
+	var index int
+	if index, ok = ctx.View.Channels.FindChannel(ev.Channel); ok {
+		return false
+	}
+
+	channel := ctx.View.Channels.ChannelItems[index]
 
 	if channel.Type == components.ChannelTypeIM {
 		return true
@@ -773,7 +844,14 @@ func createNotifyMessage(ctx *context.AppContext, ev *slack.MessageEvent) {
 		<-notifyTimer.C
 
 		var message string
-		channel := ctx.View.Channels.ChannelItems[ctx.View.Channels.FindChannel(ev.Channel)]
+		var index int
+		var ok bool
+		if index, ok = ctx.View.Channels.FindChannel(ev.Channel); !ok {
+			return
+		}
+
+		channel := ctx.View.Channels.ChannelItems[index]
+
 		switch channel.Type {
 		case components.ChannelTypeChannel:
 			message = fmt.Sprintf("Message received on channel: %s", channel.Name)

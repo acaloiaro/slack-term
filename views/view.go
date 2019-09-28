@@ -1,6 +1,8 @@
 package views
 
 import (
+	"errors"
+
 	"github.com/erroneousboat/termui"
 
 	"github.com/erroneousboat/slack-term/components"
@@ -24,7 +26,7 @@ func CreateView(config *config.Config, svc *service.SlackService) (*View, error)
 
 	// Channels: create the component
 	sideBarHeight := termui.TermHeight() - input.Par.Height
-	channels := components.CreateChannelsComponent(sideBarHeight)
+	channels := components.CreateChannelsComponent(sideBarHeight, config.UnreadOnly)
 
 	// Channels: fill the component
 	slackChans, err := svc.GetChannels()
@@ -41,32 +43,35 @@ func CreateView(config *config.Config, svc *service.SlackService) (*View, error)
 	// Chat: create the component
 	chat := components.CreateChatComponent(input.Par.Height)
 
-	// Chat: fill the component
-	msgs, thr, err := svc.GetMessages(
-		channels.ChannelItems[channels.SelectedChannel].ID,
-		chat.GetMaxItems(),
-	)
-	if err != nil {
-		return nil, err
+	if len(channels.ChannelItems) == 0 {
+		return nil, errors.New("No channels")
 	}
 
-	// Chat: set messages in component
-	chat.SetMessages(msgs)
-
-	chat.SetBorderLabel(
-		channels.ChannelItems[channels.SelectedChannel].GetChannelName(),
-	)
-
-	// Threads: set threads in component
-	if len(thr) > 0 {
-
-		// Make the first thread the current Channel
-		threads.SetChannels(
-			append(
-				[]components.ChannelItem{channels.GetSelectedChannel()},
-				thr...,
-			),
+	// Chat: fill the component
+	if chn, ok := channels.GetSelectedChannel(); ok {
+		msgs, thr, err := svc.GetMessages(
+			chn.ID,
+			chat.GetMaxItems(),
 		)
+		if err != nil {
+			return nil, err
+		}
+
+		// Chat: set messages in component
+		chat.SetMessages(msgs)
+		chat.SetBorderLabel(chn.GetChannelName())
+
+		//	 Threads: set threads in component
+		if len(thr) > 0 {
+
+			// Make the first thread the current Channel
+			threads.SetChannels(
+				append(
+					[]components.ChannelItem{chn},
+					thr...,
+				),
+			)
+		}
 	}
 
 	// Debug: create the component
@@ -89,6 +94,7 @@ func CreateView(config *config.Config, svc *service.SlackService) (*View, error)
 }
 
 func (v *View) Refresh() {
+	v.Debug.Println("Refreshing")
 	termui.Render(
 		v.Input,
 		v.Chat,

@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nlopes/slack"
+	"github.com/acaloiaro/slack"
 
 	"github.com/erroneousboat/slack-term/components"
 	"github.com/erroneousboat/slack-term/config"
@@ -144,10 +144,6 @@ func (s *SlackService) GetChannels() ([]components.ChannelItem, error) {
 			}
 
 			chanItem.Type = components.ChannelTypeChannel
-
-			if chn.UnreadCount > 0 {
-				chanItem.Notification = true
-			}
 
 			buckets[0][chn.ID] = &tempChan{
 				channelItem:  chanItem,
@@ -401,8 +397,6 @@ func (s *SlackService) SendCommand(channelID string, message string) (bool, erro
 
 		return true, nil
 	}
-
-	return false, nil
 }
 
 // GetMessages will get messages for a channel, group or im channel delimited
@@ -415,6 +409,7 @@ func (s *SlackService) GetMessages(channelID string, count int) ([]components.Me
 		ChannelID: channelID,
 		Limit:     count,
 		Inclusive: false,
+		Unreads:   true,
 	}
 
 	history, err := s.Client.GetConversationHistory(&historyParams)

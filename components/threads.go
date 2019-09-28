@@ -18,7 +18,7 @@ func CreateThreadsComponent(height int) *Threads {
 	threads.List.BorderLabel = "Threads"
 	threads.List.Height = height
 
-	threads.SelectedChannel = 0
+	threads.SelectedChannel = ""
 	threads.Offset = 0
 	threads.CursorPosition = threads.List.InnerBounds().Min.Y
 
