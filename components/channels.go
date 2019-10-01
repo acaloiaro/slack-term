@@ -98,12 +98,12 @@ func (c ChannelItem) GetChannelName() string {
 // Channels is the definition of a Channels component
 type Channels struct {
 	ChannelItems    []ChannelItem // sorted list of channels
-	CursorPosition  int           // the y position of the cursor between the min/max bounds
-	List            *termui.List  // ui of visible channels
-	Offset          int           // from what offset are channels rendered
-	SearchPosition  int           // current position in search results
-	SelectedChannel string        // index of which channel is selected from the List
-	UnreadOnly      bool          // only show unread messages when on
+	CursorPosition  int
+	List            *termui.List // ui of visible channels
+	Offset          int          // from what offset are channels rendered
+	SearchPosition  int          // current position in search results
+	SelectedChannel string       // index of which channel is selected from the List
+	UnreadOnly      bool         // only show unread messages when on
 }
 
 // CreateChannels is the constructor for the Channels component
@@ -117,7 +117,6 @@ func CreateChannelsComponent(height int, unreadOnly bool) *Channels {
 
 	channels.SelectedChannel = ""
 	channels.Offset = 0
-	channels.CursorPosition = channels.List.InnerBounds().Min.Y
 	channels.UnreadOnly = unreadOnly
 
 	return channels
@@ -155,6 +154,8 @@ func (c *Channels) ListSearchResults() (items []ChannelItem) {
 // Buffer implements interface termui.Bufferer
 func (c *Channels) Buffer() termui.Buffer {
 	buf := c.List.Buffer()
+
+	c.locateCursor()
 
 	for i, item := range c.ListChannels()[c.Offset:] {
 
@@ -233,6 +234,8 @@ func (c *Channels) SetY(y int) {
 func (c *Channels) SetChannels(channels []ChannelItem) {
 	c.ChannelItems = channels
 
+	c.locateCursor()
+
 	// set the current channel to the first one in the list
 	// when unread-only is off
 	if !c.UnreadOnly && len(c.ChannelItems) > 0 {
@@ -294,6 +297,8 @@ func (c *Channels) SetSelectedChannel(channelID string) {
 	if _, ok := c.FindChannel(channelID); ok {
 		c.SelectedChannel = channelID
 	}
+
+	c.locateCursor()
 }
 
 // Get SelectedChannel returns the ChannelItem that is currently selected
@@ -307,7 +312,37 @@ func (c *Channels) GetSelectedChannel() (selected ChannelItem, ok bool) {
 	return
 }
 
+func (c *Channels) locateCursor() (prev, curr, next int) {
+
+	c.CursorPosition = c.List.InnerBounds().Min.Y
+	channels := c.ListChannels()
+
+	if c.SelectedChannel == "" && len(channels) > 0 {
+		c.SetSelectedChannel(channels[0].ID)
+		return
+	}
+
+	for i := 0; i < len(channels)-1; i++ {
+		chn := channels[i]
+
+		c.ScrollDown()
+		c.ScrollUp()
+
+		if chn.ID == c.SelectedChannel {
+			curr = curr + i - c.Offset + 1
+			prev = curr - 1
+			next = curr + 1
+			c.CursorPosition = curr
+			return
+		}
+
+	}
+
+	return
+}
+
 // get the channel item that preceeds the selected channel item in the visible channel list
+// TODO use locateCursor
 func (c *Channels) getPreviousItem() (prev ChannelItem, ok bool) {
 
 	for _, curr := range c.ListChannels() {
@@ -323,12 +358,14 @@ func (c *Channels) getPreviousItem() (prev ChannelItem, ok bool) {
 }
 
 // get the channel item that proceeds the selected channel item in the visible channel list
-func (c *Channels) getNextItem() (next ChannelItem, ok bool) {
+// TODO use locateCursor
+func (c *Channels) getNextItem() (next ChannelItem, pos int, ok bool) {
 
 	channels := c.ListChannels()
 	for i := len(channels) - 1; i >= 0; i-- {
 		curr := channels[i]
 		if curr.ID == c.SelectedChannel && next.ID != "" {
+			pos = i
 			ok = true
 			break
 		}
@@ -355,7 +392,7 @@ func (c *Channels) MoveCursorUp() (hovering ChannelItem, ok bool) {
 // returns the item over which the cursor is now hovering
 func (c *Channels) MoveCursorDown() (hovering ChannelItem, ok bool) {
 
-	if hovering, ok = c.getNextItem(); ok {
+	if hovering, _, ok = c.getNextItem(); ok {
 		c.SetSelectedChannel(hovering.ID)
 		c.ScrollDown()
 	}
@@ -390,25 +427,24 @@ func (c *Channels) MoveCursorBottom() {
 
 // ScrollUp enables us to scroll through the channel list when it overflows
 func (c *Channels) ScrollUp() {
+
 	// Is cursor at the top of the channel view?
 	if c.CursorPosition == c.List.InnerBounds().Min.Y {
 		if c.Offset > 0 {
 			c.Offset--
 		}
-	} else {
-		c.CursorPosition--
 	}
 }
 
 // ScrollDown enables us to scroll through the channel list when it overflows
+// pos is the absolute position of the current item
 func (c *Channels) ScrollDown() {
+
 	// Is the cursor at the bottom of the channel view?
-	if c.CursorPosition == c.List.InnerBounds().Max.Y-1 {
+	if c.CursorPosition >= c.List.InnerBounds().Max.Y {
 		if c.Offset < len(c.ChannelItems)-1 {
 			c.Offset++
 		}
-	} else {
-		c.CursorPosition++
 	}
 }
 
@@ -470,18 +506,18 @@ func (c *Channels) GotoPosition(newPos int) (ok bool) {
 
 	newChannelID := c.ChannelItems[newChannelIndex].ID
 
-	if newPos < minRange {
+	if newChannelIndex < minRange {
+		// How much do we need to scroll to get it into range?
+		c.Offset = c.Offset - (minRange - newChannelIndex)
+
 		// newPos is above, we need to scroll up.
 		c.SetSelectedChannel(newChannelID)
-
+	} else if newChannelIndex > maxRange {
 		// How much do we need to scroll to get it into range?
-		c.Offset = c.Offset - (minRange - newPos)
-	} else if newPos > maxRange {
+		c.Offset = c.Offset + (newChannelIndex - maxRange)
+
 		// newPos is below, we need to scroll down
 		c.SetSelectedChannel(newChannelID)
-
-		// How much do we need to scroll to get it into range?
-		c.Offset = c.Offset + (newPos - maxRange)
 	} else {
 		// newPos is inside range
 		c.SetSelectedChannel(newChannelID)
