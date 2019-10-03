@@ -372,7 +372,7 @@ func actionSearch(ctx *context.AppContext, key rune) {
 			scrollTimer.Stop()
 		}
 
-		scrollTimer = time.NewTimer(time.Second / 4)
+		scrollTimer = time.NewTimer(time.Duration(ctx.Config.SearchTimeout) * time.Millisecond)
 		<-scrollTimer.C
 
 		// Only actually search when the time expires
@@ -661,8 +661,9 @@ func actionNewMessage(ctx *context.AppContext, ev *slack.MessageEvent) {
 	ctx.View.Channels.MarkAsUnread(ev.Channel)
 	termui.Render(ctx.View.Channels)
 
-	// Terminal bell
-	fmt.Print("\a")
+	if ctx.Config.NewMessageBell {
+		fmt.Print("\a")
+	}
 
 	// Desktop notification
 	if ctx.Config.Notify == config.NotifyMention {

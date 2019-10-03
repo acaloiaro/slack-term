@@ -17,15 +17,17 @@ const (
 
 // Config is the definition of a Config struct
 type Config struct {
-	SlackToken   string                `json:"slack_token"`
-	Notify       string                `json:"notify"`
-	Emoji        bool                  `json:"emoji"`
-	SidebarWidth int                   `json:"sidebar_width"`
-	MainWidth    int                   `json:"-"`
-	ThreadsWidth int                   `json:"threads_width"`
-	KeyMap       map[string]keyMapping `json:"key_map"`
-	Theme        Theme                 `json:"theme"`
-	UnreadOnly   bool                  `json:"show_unread_only"`
+	SlackToken     string                `json:"slack_token"`
+	Notify         string                `json:"notify"`
+	Emoji          bool                  `json:"emoji"`
+	SidebarWidth   int                   `json:"sidebar_width"`
+	MainWidth      int                   `json:"-"`
+	ThreadsWidth   int                   `json:"threads_width"`
+	KeyMap         map[string]keyMapping `json:"key_map"`
+	Theme          Theme                 `json:"theme"`
+	UnreadOnly     bool                  `json:"show_unread_only"`
+	NewMessageBell bool                  `json:"new_message_bell"`
+	SearchTimeout  int                   `json:"search_timeout"`
 }
 
 type keyMapping map[string]string
@@ -90,12 +92,14 @@ func CreateConfigFile(filepath string) (*os.File, error) {
 
 func getDefaultConfig() Config {
 	return Config{
-		SidebarWidth: 1,
-		MainWidth:    11,
-		ThreadsWidth: 1,
-		Notify:       "",
-		Emoji:        false,
-		UnreadOnly:   false,
+		SidebarWidth:   1,
+		MainWidth:      11,
+		ThreadsWidth:   1,
+		Notify:         "",
+		Emoji:          false,
+		UnreadOnly:     false,
+		NewMessageBell: true,
+		SearchTimeout:  250,
 		KeyMap: map[string]keyMapping{
 			"command": {
 				"i":          "mode-insert",
