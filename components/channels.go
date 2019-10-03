@@ -495,10 +495,6 @@ func (c *Channels) GotoPosition(newPos int) (ok bool) {
 		return
 	}
 
-	// Is the new position in range of the current view?
-	minRange := c.Offset
-	maxRange := c.Offset + (c.List.InnerBounds().Max.Y - 2)
-
 	var newChannelIndex int
 	if newChannelIndex, ok = c.FindChannel(results[newPos].ID); !ok {
 		return
@@ -506,22 +502,7 @@ func (c *Channels) GotoPosition(newPos int) (ok bool) {
 
 	newChannelID := c.ChannelItems[newChannelIndex].ID
 
-	if newChannelIndex < minRange {
-		// How much do we need to scroll to get it into range?
-		c.Offset = c.Offset - (minRange - newChannelIndex)
-
-		// newPos is above, we need to scroll up.
-		c.SetSelectedChannel(newChannelID)
-	} else if newChannelIndex > maxRange {
-		// How much do we need to scroll to get it into range?
-		c.Offset = c.Offset + (newChannelIndex - maxRange)
-
-		// newPos is below, we need to scroll down
-		c.SetSelectedChannel(newChannelID)
-	} else {
-		// newPos is inside range
-		c.SetSelectedChannel(newChannelID)
-	}
+	c.SetSelectedChannel(newChannelID)
 
 	return true
 }
