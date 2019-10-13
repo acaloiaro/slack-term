@@ -45,6 +45,7 @@ var actionMap = map[string]func(*context.AppContext){
 	"channel-search-next": actionSearchNextChannels,
 	"channel-search-prev": actionSearchPrevChannels,
 	"channel-jump":        actionJumpChannels,
+	"toggle-message-ids":  actionToggleMessageIDs,
 	"thread-up":           actionMoveCursorUpThreads,
 	"thread-down":         actionMoveCursorDownThreads,
 	"chat-up":             actionScrollUpChat,
@@ -526,6 +527,12 @@ func actionSearchPrevChannels(ctx *context.AppContext) {
 
 func actionJumpChannels(ctx *context.AppContext) {
 	ctx.View.Channels.Jump()
+	actionChangeChannel(ctx)
+}
+
+func actionToggleMessageIDs(ctx *context.AppContext) {
+	ctx.View.Chat.ClearMessages()
+	ctx.View.Chat.ShowMessageIDs()
 	actionChangeChannel(ctx)
 }
 
