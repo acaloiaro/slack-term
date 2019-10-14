@@ -158,7 +158,7 @@ func messageHandler(ctx *context.AppContext) {
 
 						// we (mis)use actionChangeChannel, to rerender, the
 						// view when a new thread has been started
-						if ctx.View.Chat.IsNewThread(threadTimestamp) {
+						if ctx.Service.IsNewThread(msg.ThreadID) {
 							actionChangeChannel(ctx)
 						} else {
 							termui.Render(ctx.View.Chat)

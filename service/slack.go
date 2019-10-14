@@ -256,6 +256,17 @@ func (s *SlackService) GetUserPresence(userID string) (string, error) {
 	return presence.Presence, nil
 }
 
+// IsNewThread checks if a thread has been previously observed by checking
+// for its presence in the thread cache
+func (s *SlackService) IsNewThread(threadID string) bool {
+
+	if _, ok := s.ThreadCache[threadID]; ok || threadID == "" {
+		return false
+	}
+
+	return true
+}
+
 // Set current user presence to active
 func (s *SlackService) SetUserAsActive() {
 	s.Client.SetUserPresence("auto")
