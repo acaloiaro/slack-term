@@ -353,7 +353,7 @@ func actionSend(ctx *context.AppContext) {
 		return
 	}
 
-	// user input was not as slash command; send it as a message
+	// user input was not a slash command; send it as a message
 	if ctx.Focus == context.ChatFocus {
 		err := ctx.Service.SendMessage(chn.ID, message)
 		if err != nil {
@@ -803,7 +803,7 @@ func actionHelp(ctx *context.AppContext) {
 	termui.Render(ctx.View.Chat)
 }
 
-// actionSlashCommand checks wether messages contain slash commands that slack-term supports.
+// actionSlashCommand checks whether messages contain slash commands that slack-term supports.
 // If the command is supported, its handler is called.
 //
 // NOTE: slack slash commands that are sent to the slack api are undocumented,
