@@ -344,6 +344,20 @@ func (s *SlackService) SendReply(channelID string, threadID string, message stri
 	return nil
 }
 
+func (s *SlackService) UpdateChat(channelID, messageID, message string) error {
+
+	text := slack.MsgOptionText(message, true)
+
+	// https://godoc.org/github.com/nlopes/slack#Client.UpdateMessage
+	_, _, _, err := s.Client.UpdateMessage(channelID, messageID, text)
+	if err != nil {
+		return err
+	}
+
+	return nil
+
+}
+
 // SendCommand will send a specific command to slack. First we check
 // wether we are dealing with a command, and if it is one of the supported
 // ones.
@@ -384,6 +398,28 @@ func (s *SlackService) SendCommand(channelID string, message string) (bool, erro
 			}
 		} else if msgID, ok := s.MessageCache[subMatch[2]]; ok {
 			err := s.SendReply(channelID, msgID, msg)
+			if err != nil {
+				return true, err
+			}
+		}
+
+		return true, nil
+	case "/edit":
+		r := regexp.MustCompile(`(?P<cmd>^/\w+) (?P<id>\w+) (?P<msg>.*)`)
+		subMatch := r.FindStringSubmatch(message)
+
+		if len(subMatch) < 3 {
+			return false, errors.New("'/edit' command malformed")
+		}
+
+		msg := subMatch[3]
+		if threadID, ok := s.ThreadCache[subMatch[2]]; ok {
+			err := s.UpdateChat(channelID, threadID, msg)
+			if err != nil {
+				return true, err
+			}
+		} else if msgID, ok := s.MessageCache[subMatch[2]]; ok {
+			err := s.UpdateChat(channelID, msgID, msg)
 			if err != nil {
 				return true, err
 			}

@@ -55,11 +55,20 @@ func (m Message) GetThread() string {
 }
 
 func (m Message) GetMsgID() string {
-	return fmt.Sprintf(
-		"[%s](%s) ",
-		m.MsgID,
-		m.StyleThread,
-	)
+	// is the message a parent or a thread
+	if m.ThreadID == "" || m.ThreadID == m.MsgID {
+		return fmt.Sprintf(
+			"[%s](%s) ",
+			m.MsgID,
+			m.StyleThread,
+		)
+	} else {
+		return fmt.Sprintf(
+			"  [%s](%s) ",
+			m.MsgID,
+			m.StyleThread,
+		)
+	}
 }
 
 func (m Message) GetName() string {
