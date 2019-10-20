@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -548,6 +549,12 @@ func actionChangeChannel(ctx *context.AppContext) {
 		return
 	}
 
+	if ctx.Debug {
+		ctx.View.Debug.Println(
+			fmt.Sprintf("Channel: %s", selectedChannel.ID),
+		)
+	}
+
 	// Get messages of the SelectedChannel, and get the count of messages
 	// that fit into the Chat component
 	msgs, threads, err := ctx.Service.GetMessages(
@@ -814,17 +821,29 @@ func actionHelp(ctx *context.AppContext) {
 func actionSlashCommand(ctx *context.AppContext, msg, channelID string) (ok bool, err error) {
 
 	// first check if the message contains a slash command
-	r, _ := regexp.Compile(`^/\w+`)
+	r := regexp.MustCompile(`^(/\w+)\s+(.*)`)
 	if ok = r.MatchString(msg); !ok {
 		return
 	}
 
+	matches := r.FindStringSubmatch(msg)
+	if len(matches) < 2 {
+		ok = false
+		err = errors.New("No command provided")
+		return
+	}
+
+	cmd := matches[1]
+	cmdParams := strings.Join(matches[2:], " ")
+
 	// check for if the command in the message is supported
-	switch r.FindString(msg) {
+	switch cmd {
 	case "/thread":
-		return threadCommandHandler(ctx, channelID, msg)
+		return threadCommandHandler(ctx, channelID, cmdParams)
 	case "/edit":
-		return editCommandHandler(ctx, channelID, msg)
+		return editCommandHandler(ctx, channelID, cmdParams)
+	case "/delete":
+		return deleteCommandHandler(ctx, channelID, cmdParams)
 	default:
 		return defaultCommandHandler(ctx, channelID, msg)
 	}
