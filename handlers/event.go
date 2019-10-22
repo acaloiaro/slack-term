@@ -394,7 +394,7 @@ func actionSearch(ctx *context.AppContext, key rune) {
 			scrollTimer.Stop()
 		}
 
-		scrollTimer = time.NewTimer(time.Second / 4)
+		scrollTimer = time.NewTimer(time.Second / 2)
 		<-scrollTimer.C
 
 		// Only actually search when the time expires
@@ -471,7 +471,7 @@ func actionMoveCursorUpChannels(ctx *context.AppContext) {
 
 		termui.Render(ctx.View.Channels)
 
-		scrollTimer = time.NewTimer(time.Second / 4)
+		scrollTimer = time.NewTimer(time.Second / 2)
 		<-scrollTimer.C
 
 		// Only actually change channel when the timer expires
@@ -500,7 +500,7 @@ func actionMoveCursorDownChannels(ctx *context.AppContext) {
 
 		termui.Render(c)
 
-		scrollTimer = time.NewTimer(time.Second / 4)
+		scrollTimer = time.NewTimer(time.Second / 2)
 		<-scrollTimer.C
 
 		// Only actually change channel when the timer expires
@@ -678,7 +678,7 @@ func actionMoveCursorUpThreads(ctx *context.AppContext) {
 
 		termui.Render(ctx.View.Threads)
 
-		scrollTimer = time.NewTimer(time.Second / 4)
+		scrollTimer = time.NewTimer(time.Second / 2)
 		<-scrollTimer.C
 
 		// Only actually change channel when the timer expires
@@ -704,7 +704,7 @@ func actionMoveCursorDownThreads(ctx *context.AppContext) {
 
 		termui.Render(ctx.View.Threads)
 
-		scrollTimer = time.NewTimer(time.Second / 4)
+		scrollTimer = time.NewTimer(time.Second / 2)
 		<-scrollTimer.C
 
 		// Only actually change thread when the timer expires
@@ -717,9 +717,6 @@ func actionMoveCursorDownThreads(ctx *context.AppContext) {
 func actionNewMessage(ctx *context.AppContext, ev *slack.MessageEvent) {
 	ctx.View.Channels.MarkAsUnread(ev.Channel)
 	termui.Render(ctx.View.Channels)
-
-	// Terminal bell
-	fmt.Print("\a")
 
 	// Desktop notification
 	if ctx.Config.Notify == config.NotifyMention {
