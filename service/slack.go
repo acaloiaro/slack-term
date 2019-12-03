@@ -12,10 +12,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nlopes/slack"
+	"github.com/acaloiaro/slack"
 
-	"github.com/erroneousboat/slack-term/components"
-	"github.com/erroneousboat/slack-term/config"
+	"github.com/acaloiaro/slack-term/components"
+	"github.com/acaloiaro/slack-term/config"
 )
 
 type SlackService struct {
@@ -401,7 +401,6 @@ func (s *SlackService) GetMessages(channelID string, count int) ([]components.Me
 		ChannelID: channelID,
 		Limit:     count,
 		Inclusive: false,
-		Unreads:   true,
 	}
 
 	history, err := s.Client.GetConversationHistory(&historyParams)

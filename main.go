@@ -11,8 +11,8 @@ import (
 	"github.com/erroneousboat/termui"
 	termbox "github.com/nsf/termbox-go"
 
-	"github.com/erroneousboat/slack-term/context"
-	"github.com/erroneousboat/slack-term/handlers"
+	"github.com/acaloiaro/slack-term/context"
+	"github.com/acaloiaro/slack-term/handlers"
 )
 
 const (

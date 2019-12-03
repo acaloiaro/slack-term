@@ -7,9 +7,9 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/erroneousboat/slack-term/context"
+	"github.com/acaloiaro/slack"
+	"github.com/acaloiaro/slack-term/context"
 	"github.com/erroneousboat/termui"
-	"github.com/nlopes/slack"
 )
 
 // deleteCommandHandler accepts a message ID and deletes the message corresponding to it

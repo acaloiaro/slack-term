@@ -9,7 +9,7 @@ import (
 	"github.com/erroneousboat/termui"
 	runewidth "github.com/mattn/go-runewidth"
 
-	"github.com/erroneousboat/slack-term/config"
+	"github.com/acaloiaro/slack-term/config"
 )
 
 // Chat is the definition of a Chat component
