@@ -9,7 +9,7 @@ require (
 	github.com/erroneousboat/termui v0.0.0-20170923115141-80f245cdfa04
 	github.com/gorilla/websocket v1.4.1 // indirect
 	github.com/kr/pretty v0.1.0 // indirect
-	github.com/lithammer/fuzzysearch v1.0.1
+	github.com/lithammer/fuzzysearch v1.1.0
 	github.com/maruel/panicparse v1.1.1
 	github.com/mattn/go-runewidth v0.0.7
 	github.com/mitchellh/go-wordwrap v1.0.0 // indirect

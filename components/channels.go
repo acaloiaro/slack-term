@@ -3,6 +3,7 @@ package components
 import (
 	"fmt"
 	"html"
+	"sort"
 
 	"github.com/erroneousboat/termui"
 	"github.com/lithammer/fuzzysearch/fuzzy"
@@ -414,11 +415,12 @@ func (c *Channels) Search(term string) (resultCount int) {
 		targets = append(targets, c.Name)
 	}
 
-	matches := fuzzy.Find(term, targets)
+	matches := fuzzy.RankFindNormalized(term, targets)
+	sort.Sort(matches)
 
 	for _, m := range matches {
 		for key, chn := range c.ChannelItems {
-			if m == chn.Name {
+			if m.Target == chn.Name {
 				resultCount = resultCount + 1
 				chn.IsSearchResult = true
 				c.ChannelItems[key] = chn
