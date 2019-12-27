@@ -10,7 +10,7 @@ Installation
 
 #### Binary installation
 
-[Download](https://github.com/erroneousboat/slack-term/releases) a
+[Download](https://github.com/acaloiaro/slack-term/releases) a
 compatible binary for your system. For convenience, place `slack-term` in a
 directory where you can access it from the command line. Usually this is
 `/usr/local/bin`.
