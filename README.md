@@ -75,6 +75,7 @@ in your `.slack-term` file.
 | command | `pg-down` | scroll chat pane down      |
 | command | `ctrl-f`  | scroll chat pane down      |
 | command | `ctrl-d`  | scroll chat pane down      |
+| command | `m`       | toggle message IDs on      |
 | command | `n`       | next search match          |
 | command | `N`       | previous search match      |
 | command | `q`       | quit                       |
@@ -85,3 +86,38 @@ in your `.slack-term` file.
 | insert  | `esc`     | command mode               |
 | search  | `esc`     | command mode               |
 | search  | `enter`   | command mode               |
+
+Slash Commands
+--------------
+| command    | first_param | second param      | description                                                    |
+|------------|-------------|-------------------|----------------------------------------------------------------|
+| `/delete`  | msgID       | `N/A`             | Deletes the message identified by `msgID` from channel history |
+| `/edit`    | msgID       | `N/A`             | Edit the message identified by `msgID`                         |
+| `/thread`  | msgID       | `your message`    | Sends threaded message under message identified by `msgID`     |
+
+Example Config 
+--------------
+`~/.slack-term`
+```
+{
+  "slack_token": "<YOUR TOKEN HERE",
+  "sidebar_width": 2,
+  "notify": "mention",
+  "emoji": true,
+  "show_unread_only": true,
+  "search_timeout": 500,
+  "new_message_bell": false,
+  "theme": {
+    "message": {
+      "time_format": "02/01 15:04",
+      "time": "fg-green,fg-bold",
+      "name": "colorize,fg-bold",
+      "text": "fg-blue"
+    },
+    "channel": {
+      "prefix": "fg-red,fg-bold",
+      "icon": "fg-green,fg-bold",
+      "text": "fg-blue,fg-bold"
+    }
+  }
+}```
