@@ -67,6 +67,7 @@ in your `.slack-term` file.
 | command | `/`       | search mode                  |
 | command | `k`       | move channel cursor up       |
 | command | `j`       | move channel cursor down     |
+| command | `enter`   | select channel               |
 | command | `g`       | move channel cursor top      |
 | command | `G`       | move channel cursor bottom   |
 | command | `pg-up`   | scroll chat pane up          |
