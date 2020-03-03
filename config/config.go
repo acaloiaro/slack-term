@@ -116,6 +116,7 @@ func getDefaultConfig() Config {
 				"n":          "channel-search-next",
 				"N":          "channel-search-prev",
 				"'":          "channel-jump",
+				"<enter>":    "channel-select",
 				"q":          "quit",
 				"<f1>":       "help",
 			},

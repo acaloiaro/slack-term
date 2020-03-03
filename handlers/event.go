@@ -46,6 +46,7 @@ var actionMap = map[string]func(*context.AppContext){
 	"channel-search-next": actionSearchNextChannels,
 	"channel-search-prev": actionSearchPrevChannels,
 	"channel-jump":        actionJumpChannels,
+	"channel-select":      actionChannelSelect,
 	"toggle-message-ids":  actionToggleMessageIDs,
 	"thread-up":           actionMoveCursorUpThreads,
 	"thread-down":         actionMoveCursorDownThreads,
@@ -455,57 +456,32 @@ func actionGetMessages(ctx *context.AppContext) {
 // function. A timer is implemented to support fast scrolling through
 // the list without executing the actionChangeChannel event
 func actionMoveCursorUpChannels(ctx *context.AppContext) {
-	go func() {
-		if scrollTimer != nil {
-			scrollTimer.Stop()
-		}
+	c := ctx.View.Channels
+	if chn, ok := c.GetPreviousChannel(); ok {
 
-		c := ctx.View.Channels
-		if chn, ok := c.GetPreviousChannel(); ok {
+		c.SetSelectedChannel(chn.ID)
+		c.ScrollToChannel(chn.ID)
+	} else {
+		return
+	}
 
-			c.SetSelectedChannel(chn.ID)
-			c.ScrollToChannel(chn.ID)
-		} else {
-			return
-		}
-
-		termui.Render(ctx.View.Channels)
-
-		scrollTimer = time.NewTimer(time.Second / 2)
-		<-scrollTimer.C
-
-		// Only actually change channel when the timer expires
-		actionChangeChannel(ctx)
-	}()
+	termui.Render(ctx.View.Channels)
 }
 
 // actionMoveCursorDownChannels will execute the actionChangeChannel
-// function. A timer is implemented to support fast scrolling through
-// the list without executing the actionChangeChannel event
+// function.
 func actionMoveCursorDownChannels(ctx *context.AppContext) {
-	go func() {
-		if scrollTimer != nil {
-			scrollTimer.Stop()
-		}
+	c := ctx.View.Channels
 
-		c := ctx.View.Channels
+	if chn, ok := c.GetNextChannel(); ok {
 
-		if chn, ok := c.GetNextChannel(); ok {
+		c.SetSelectedChannel(chn.ID)
+		c.ScrollToChannel(chn.ID)
+	} else {
+		return
+	}
 
-			c.SetSelectedChannel(chn.ID)
-			c.ScrollToChannel(chn.ID)
-		} else {
-			return
-		}
-
-		termui.Render(c)
-
-		scrollTimer = time.NewTimer(time.Second / 2)
-		<-scrollTimer.C
-
-		// Only actually change channel when the timer expires
-		actionChangeChannel(ctx)
-	}()
+	termui.Render(c)
 }
 
 func actionMoveCursorTopChannels(ctx *context.AppContext) {
@@ -530,6 +506,10 @@ func actionSearchPrevChannels(ctx *context.AppContext) {
 
 func actionJumpChannels(ctx *context.AppContext) {
 	ctx.View.Channels.Jump()
+	actionChangeChannel(ctx)
+}
+
+func actionChannelSelect(ctx *context.AppContext) {
 	actionChangeChannel(ctx)
 }
 
