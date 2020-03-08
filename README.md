@@ -1,7 +1,7 @@
 slack-term
 ==========
 
-A [Slack](https://slack.com) client for your terminal.
+A [Slack](https://slack.com) client for your terminal. This project originally forked from the great work of [erroneousboat/slack-term](https://github.com/erroneousboat/slack-term), but this has diverged quite a bit and now I consider it a standalone project. 
 
 ![Screenshot](/screenshot.png?raw=true)
 
